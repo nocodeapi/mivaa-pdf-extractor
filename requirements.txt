@@ -69,7 +69,7 @@ imageio>=2.31.0
 torch==2.2.0
 torchvision==0.17.0
 transformers>=4.30.0
-clip-by-openai>=1.0
+# clip-by-openai>=1.0
 
 # OCR Dependencies for Phase 8 Multi-modal Integration
 easyocr>=1.7.0

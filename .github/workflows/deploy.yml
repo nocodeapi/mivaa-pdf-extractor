@@ -56,41 +56,10 @@ jobs:
         IMAGE_TAG=${{ secrets.IMAGE_TAG }}
         EOL
 
-        # Remove existing virtual environment and cache
-        rm -rf .venv
-        uv cache clean
-        
-        # Create fresh virtual environment
-        uv venv .venv
-        source .venv/bin/activate
-
-        # Force reinstall all dependencies
-        echo "Force reinstalling all dependencies..."
-        
-        # Install requirements one by one to identify conflicts
-        if [ -f "requirements.txt" ]; then
-          # First, install without pymupdf4llm to see base dependencies
-          grep -v "pymupdf4llm" requirements.txt > temp_requirements.txt
-          uv pip install -r temp_requirements.txt
-          
-          # Then install pymupdf4llm separately
-          uv pip install pymupdf4llm==0.0.12 --force-reinstall
-          
-          rm temp_requirements.txt
-        fi
-        
-        if [ -f "requirements-torch.txt" ]; then
-          uv pip install -r requirements-torch.txt
-        fi
-
-        # Verify installation
-        echo "Verifying installation..."
-        python -c "import pymupdf; print(f'PyMuPDF version: {pymupdf.version}')"
-        python -c "import pymupdf4llm; print('pymupdf4llm imported successfully')"
+        # Install/update dependencies using uv pip (faster than uv sync)
+        uv pip install -r requirements.txt
+        uv pip install -r requirements-torch.txt
 
         # Restart the FastAPI service
         sudo systemctl restart mivaa-pdf-extractor
-        
-        # Check service status
-        sudo systemctl status mivaa-pdf-extractor --no-pager -l
         EOF

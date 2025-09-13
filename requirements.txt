@@ -3,7 +3,7 @@ fastapi[standard]>=0.104.1
 uvicorn[standard]>=0.24.0
 
 # PDF processing dependencies
-pymupdf4llm==0.0.12
+pymupdf4llm==0.0.9
 PyMuPDF>=1.24.2
 pandas==2.1.4
 

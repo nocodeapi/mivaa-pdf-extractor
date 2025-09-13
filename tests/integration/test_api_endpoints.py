@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 from httpx import AsyncClient
 
 from app.main import app
-from app.core.config import get_settings
+from app.config import get_settings
 
 
 @pytest.mark.integration
@@ -164,7 +164,7 @@ class TestDocumentProcessingEndpoints:
             temp_file.flush()
             
             try:
-                with patch('app.core.config.get_settings') as mock_settings:
+                with patch('app.config.get_settings') as mock_settings:
                     settings = MagicMock()
                     settings.MAX_FILE_SIZE = 1024 * 1024  # 1MB limit
                     mock_settings.return_value = settings

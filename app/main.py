@@ -474,7 +474,7 @@ def create_app() -> FastAPI:
     
     app = FastAPI(
         title=settings.app_name,
-        version=settings.version,
+        version=settings.app_version,
         description="Production-ready microservice for converting PDF documents to Markdown format with LlamaIndex integration",
         docs_url="/docs" if settings.debug else None,
         redoc_url="/redoc" if settings.debug else None,
@@ -607,7 +607,7 @@ async def health_check() -> HealthResponse:
     return HealthResponse(
         status="healthy",
         timestamp=datetime.utcnow(),
-        version=settings.version,
+        version=settings.app_version,
         service=settings.app_name
     )
 

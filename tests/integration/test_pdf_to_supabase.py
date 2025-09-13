@@ -16,7 +16,7 @@ from datetime import datetime
 
 from app.services.pdf_processor import PDFProcessor
 from app.services.supabase_service import SupabaseService
-from app.core.config import get_settings
+from app.config import get_settings
 
 
 @pytest.mark.integration

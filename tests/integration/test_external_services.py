@@ -16,7 +16,7 @@ from aioresponses import aioresponses
 
 from app.services.material_kai_service import MaterialKaiService
 from app.services.openai_service import OpenAIService
-from app.core.config import get_settings
+from app.config import get_settings
 
 
 @pytest.mark.integration

@@ -1,167 +1,56 @@
-name: Deploy to Digital Ocean
+name: Deploy FastAPI App with uv
 
 on:
   push:
-    branches: [ main, production ]
-  workflow_dispatch:
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}/mivaa-pdf-extractor
+    branches: [ "main", "production"]       # deploy when main branch is updated
+  workflow_dispatch:           # allow manual trigger
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python 3.11
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-    
-    - name: Cache pip dependencies
-      uses: actions/cache@v4
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-
-    - name: Validate deployment configuration
-      run: |
-        python scripts/validate-deployment.py --environment=production
-      env:
-        ENVIRONMENT: production
-        DEBUG: false
-        LOG_LEVEL: INFO
-        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-        SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-        SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        TOGETHER_API_KEY: ${{ secrets.TOGETHER_API_KEY }}
-        JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
-        SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
-        MATERIAL_KAI_API_URL: ${{ secrets.MATERIAL_KAI_API_URL }}
-        MATERIAL_KAI_API_KEY: ${{ secrets.MATERIAL_KAI_API_KEY }}
-        ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  build:
-    needs: test
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    outputs:
-      image: ${{ steps.image.outputs.image }}
-    
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Log in to Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ${{ env.REGISTRY }}
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Extract metadata
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-        tags: |
-          type=ref,event=branch
-          type=ref,event=pr
-          type=sha,prefix={{branch}}-
-          type=raw,value=latest,enable={{is_default_branch}}
-
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: ./Dockerfile
-        push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-
-    - name: Output image
-      id: image
-      run: echo "image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}" >> $GITHUB_OUTPUT
-
   deploy:
-    needs: build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/production'
-    
-    steps:
-    - uses: actions/checkout@v4
 
+    steps:
+    # 1. Checkout the code
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    # 2. Load the private SSH key to connect to the server
     - name: Setup SSH
-      uses: webfactory/ssh-agent@v0.8.0
+      uses: webfactory/ssh-agent@v0.9.0
       with:
         ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
 
-    - name: Add server to known hosts
-      run: ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
-
-    - name: Setup Server (First Time Only)
+    # 3. Deploy the application
+    - name: Deploy to server
       run: |
-        ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'EOF'
-          if [ ! -f /opt/mivaa-pdf-extractor/.setup-complete ]; then
-            sudo mkdir -p /opt/mivaa-pdf-extractor
-            sudo chown -R $USER:$USER /opt/mivaa-pdf-extractor
-            if [ ! -d /opt/mivaa-pdf-extractor/.git ]; then
-              cd /opt/mivaa-pdf-extractor
-              git clone https://github.com/${{ github.repository }}.git .
-            else
-              cd /opt/mivaa-pdf-extractor
-              git fetch origin
-              git reset --hard origin/${{ github.ref_name }}
-            fi
-            chmod +x /opt/mivaa-pdf-extractor/deploy/setup-server.sh
-            sudo /opt/mivaa-pdf-extractor/deploy/setup-server.sh
-            touch /opt/mivaa-pdf-extractor/.setup-complete
-          fi
+        ssh -o StrictHostKeyChecking=no user@YOUR_SERVER_IP << 'EOF'
+          set -e
+
+          # Clone the repo the first time if it doesn't exist
+          cd /var/www/mivaa-pdf-extractor || {
+            git clone git@github.com:nocodeapi/mivaa-pdf-extractor.git /var/www/mivaa-pdf-extractor
+            cd /var/www/mivaa-pdf-extractor
+          }
+          git pull origin main
+
+          # Write environment variables to .env
+          cat > .env <<EOL
+          SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          OPENAI_ORG_ID=${{ secrets.OPENAI_ORG_ID }}
+          OPENAI_PROJECT_ID=${{ secrets.OPENAI_PROJECT_ID }}
+          ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
+          HUGGINGFACE_API_TOKEN=${{ secrets.HUGGINGFACE_API_TOKEN }}
+          HUGGING_FACE_ACCESS_TOKEN=${{ secrets.HUGGING_FACE_ACCESS_TOKEN }}
+          GITHUB_REPOSITORY=${{ secrets.GITHUB_REPOSITORY }}
+          IMAGE_TAG=${{ secrets.IMAGE_TAG }}
+          EOL
+
+          # Install or update dependencies using uv
+          uv sync --frozen
+
+          # Restart the FastAPI service (systemd unit must already exist)
+          sudo systemctl restart mivaa-pdf-extractor
         EOF
-
-    - name: Setup SSL Certificate
-      run: |
-        ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'EOF'
-          if [ -n "${{ secrets.DOMAIN_NAME }}" ]; then
-            sudo /usr/local/bin/setup-ssl.sh "${{ secrets.DOMAIN_NAME }}" "${{ secrets.ADMIN_EMAIL }}"
-          fi
-        EOF
-
-    - name: Deploy Application
-      run: |
-        ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'EOF'
-          cd /opt/mivaa-pdf-extractor
-          git fetch origin
-          git reset --hard origin/${{ github.ref_name }}
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-
-          # Create docker-compose.override.yml on server
-          cat > docker-compose.override.yml << 'OVERRIDE_EOF'
-          version: '3.8'
-          services:
-            mivaa-pdf-extractor:
-              image: ${{ needs.build.outputs.image }}
-              environment:
-                - ENVIRONMENT=production
-                - DEBUG=false
-                - LOG_LEVEL=INFO
-                - SUPABASE_URL=${SUPABASE_URL}
-                - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
-                - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-                - DATABASE_URL=${DATABASE_URL}
-                - DB_POOL_SIZE=${DB_POOL_SIZE:-10}

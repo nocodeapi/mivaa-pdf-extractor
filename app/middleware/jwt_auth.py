@@ -23,8 +23,8 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
-from ..core.config import get_settings
-from ..core.database import get_supabase_client
+from ..config import get_settings
+from app.services.supabase_client import get_supabase_client
 
 
 logger = logging.getLogger(__name__)

@@ -1,24 +1,31 @@
-# Multi-stage build for production deployment
+# Multi-stage build for production deployment with uv optimization
 FROM python:3.11-slim as builder
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    UV_CACHE_DIR=/tmp/uv-cache
 
-# Install system dependencies
+# Install system dependencies and uv
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir uv
 
 # Create and set working directory
 WORKDIR /app
 
-# Copy requirements and install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy requirements files
+COPY requirements.txt requirements-torch.txt ./
+
+# Install PyTorch CPU-only first (separate to avoid index conflicts)
+RUN --mount=type=cache,target=/tmp/uv-cache \
+    uv pip install --system -r requirements-torch.txt --index-url https://download.pytorch.org/whl/cpu
+
+# Install remaining dependencies with uv (much faster than pip)
+RUN --mount=type=cache,target=/tmp/uv-cache \
+    uv pip install --system -r requirements.txt
 
 # Production stage
 FROM python:3.11-slim as production
@@ -30,6 +37,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
+    # Runtime dependencies for OpenCV
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    # Runtime dependencies for OCR
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    # Keep curl for health check
     curl \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -r appuser && useradd -r -g appuser appuser

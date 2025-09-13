@@ -12,12 +12,20 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, validator
 
-from .common import BaseResponse, ProcessingStatus, PaginationParams
+from .common import BaseResponse, PaginationParams
 
 
-class JobStatus(ProcessingStatus):
-    """Extended job status enumeration."""
+class JobStatus(str, Enum):
+    """Extended job status enumeration with all processing states."""
     
+    # Base processing states
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    
+    # Extended job states
     QUEUED = "queued"
     RUNNING = "running"
     PAUSED = "paused"

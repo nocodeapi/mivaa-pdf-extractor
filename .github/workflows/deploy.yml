@@ -30,7 +30,6 @@ jobs:
         APP_DIR=/var/www/mivaa-pdf-extractor
 
         # Store the current branch name from the GitHub Actions context
-        # This will be 'production' if triggered by a push to production branch
         DEPLOY_BRANCH="${{ github.ref_name }}"
 
         # Clone repo if it doesn't exist
@@ -48,25 +47,33 @@ jobs:
         # Check if Python 3.9 is available, if not install it
         if ! command -v python3.9 &> /dev/null; then
           echo "Installing Python 3.9..."
+          
+          # Remove any existing deadsnakes repository
+          rm -f /etc/apt/sources.list.d/deadsnakes.list
+          
           apt update
-          apt install -y software-properties-common
-          add-apt-repository -y ppa:deadsnakes/ppa
+          apt install -y software-properties-common curl gnupg
+          
+          # Manually add the deadsnakes PPA for jammy (22.04) since plucky isn't supported
+          echo "deb [signed-by=/usr/share/keyrings/deadsnakes-ppa.gpg] https://ppa.launchpadcontent.net/deadsnakes/ppa/ubuntu jammy main" > /etc/apt/sources.list.d/deadsnakes-jammy.list
+          
+          # Add the GPG key
+          mkdir -p /usr/share/keyrings
+          curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xF23C5A6CF475977595C89F51BA6932366A755776" | gpg --dearmor -o /usr/share/keyrings/deadsnakes-ppa.gpg
+          
           apt update
           apt install -y python3.9 python3.9-venv python3.9-dev python3.9-distutils
           
-          # Install pip for Python 3.9 if needed
-          if ! python3.9 -m pip --version &> /dev/null; then
-            curl https://bootstrap.pypa.io/get-pip.py | python3.9
-          fi
+          # Verify installation
+          python3.9 --version
         fi
 
-        # --- DEBUGGING STEP (Keep this for now, just in case) ---
+        # --- DEBUGGING STEP ---
         echo "--- Python version check ---"
         python3.9 --version
         echo "--- Listing files in $APP_DIR after git reset ---"
         ls -la "$APP_DIR"
         echo "-----------------------------------"
-        # --- END DEBUGGING STEP ---
 
         # Write environment variables to .env
         cat > .env <<EOL
@@ -87,19 +94,7 @@ jobs:
         if [ ! -d ".venv" ] || [ ! -f ".venv/pyvenv.cfg" ] || ! grep -q "3.9" .venv/pyvenv.cfg; then
           echo "Creating virtual environment with Python 3.9..."
           rm -rf .venv
-          
-          # Use the installed Python 3.9
-          if command -v python3.9 &> /dev/null; then
-            PYTHON39_PATH=$(which python3.9)
-          elif [ -f "$HOME/.pyenv/versions/3.9.18/bin/python" ]; then
-            PYTHON39_PATH="$HOME/.pyenv/versions/3.9.18/bin/python"
-          else
-            echo "Error: Python 3.9 not found!"
-            exit 1
-          fi
-          
-          echo "Using Python at: $PYTHON39_PATH"
-          uv venv .venv --python "$PYTHON39_PATH"
+          uv venv .venv --python python3.9
         fi
 
         # Activate virtual environment

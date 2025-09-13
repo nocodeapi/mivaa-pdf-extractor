@@ -42,9 +42,18 @@ jobs:
           git fetch origin "$DEPLOY_BRANCH"
           git reset --hard origin/"$DEPLOY_BRANCH"
 
-          # --- Debugging ---
+          # --- Initialize pyenv ---
+          export PATH="$HOME/.pyenv/bin:$PATH"
+          eval "$(pyenv init --path)"
+          eval "$(pyenv init -)"
+          eval "$(pyenv virtualenv-init -)"
+
+          # Use pyenv Python
+          PYTHON=python
+
+          # --- Debug ---
           echo "--- Python version ---"
-          python3.9 --version
+          $PYTHON --version
 
           # Write environment variables to .env
           cat > .env <<EOL
@@ -63,24 +72,24 @@ jobs:
 
           # --- Create virtual environment ---
           if [ ! -d ".venv" ] || [ ! -f ".venv/pyvenv.cfg" ] || ! grep -q "3.9" .venv/pyvenv.cfg; then
-            echo "Creating virtual environment with Python 3.9..."
+            echo "Creating virtual environment with pyenv Python..."
             rm -rf .venv
-            python3.9 -m venv .venv
+            $PYTHON -m venv .venv
           fi
 
           # Activate venv
           source .venv/bin/activate
-          echo "Python version in venv: $(python --version)"
+          echo "Python version in venv: $($PYTHON --version)"
 
           # --- Sync dependencies ---
           echo "Syncing dependencies from uv.lock..."
           uv pip sync uv.lock
 
           # --- Verify installations ---
-          python -c "import sys; print(f'Python version: {sys.version}')"
-          python -c "import fastapi; print('FastAPI OK')"
-          python -c "import pymupdf; print(f'PyMuPDF {pymupdf.__version__} OK')"
-          python -c "import pymupdf4llm; print('pymupdf4llm OK')"
+          $PYTHON -c "import sys; print(f'Python version: {sys.version}')"
+          $PYTHON -c "import fastapi; print('FastAPI OK')"
+          $PYTHON -c "import pymupdf; print(f'PyMuPDF {pymupdf.__version__} OK')"
+          $PYTHON -c "import pymupdf4llm; print('pymupdf4llm OK')"
 
           # Restart the FastAPI service
           echo "Restarting service..."

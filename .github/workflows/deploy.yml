@@ -84,10 +84,22 @@ jobs:
         EOL
 
         # Create virtual environment with Python 3.9 if it doesn't exist
-        if [ ! -d ".venv" ] || [ ! -f ".venv/pyvenv.cfg" ] || ! grep -q "python3.9" .venv/pyvenv.cfg; then
+        if [ ! -d ".venv" ] || [ ! -f ".venv/pyvenv.cfg" ] || ! grep -q "3.9" .venv/pyvenv.cfg; then
           echo "Creating virtual environment with Python 3.9..."
           rm -rf .venv
-          uv venv .venv --python python3.9
+          
+          # Use the installed Python 3.9
+          if command -v python3.9 &> /dev/null; then
+            PYTHON39_PATH=$(which python3.9)
+          elif [ -f "$HOME/.pyenv/versions/3.9.18/bin/python" ]; then
+            PYTHON39_PATH="$HOME/.pyenv/versions/3.9.18/bin/python"
+          else
+            echo "Error: Python 3.9 not found!"
+            exit 1
+          fi
+          
+          echo "Using Python at: $PYTHON39_PATH"
+          uv venv .venv --python "$PYTHON39_PATH"
         fi
 
         # Activate virtual environment

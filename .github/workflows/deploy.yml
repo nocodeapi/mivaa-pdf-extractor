@@ -2,13 +2,13 @@ name: Deploy FastAPI App with uv
 
 on:
   push:
-    branches: [ "main", "production"]       # deploy when main or production is updated
-  workflow_dispatch:                        # allow manual trigger
+    branches: [ "main", "production"]
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: production                 # <-- ensures environment secrets are available
+    environment: production
 
     steps:
     # 1. Checkout the repository
@@ -24,41 +24,42 @@ jobs:
     # 3. Deploy the application
     - name: Deploy to server
       run: |
-          ssh -o StrictHostKeyChecking=no root@104.248.190.55 << 'EOF'
-          set -e
+        ssh -o StrictHostKeyChecking=no root@104.248.190.55 << 'EOF'
+        set -e
 
-          APP_DIR=/var/www/mivaa-pdf-extractor
+        APP_DIR=/var/www/mivaa-pdf-extractor
 
-          # If the folder doesn't exist or is not a git repo, clone it
-          if [ ! -d "$APP_DIR/.git" ]; then
-            rm -rf "$APP_DIR"           # remove incomplete folder if it exists
-            git clone https://x-access-token:${{ secrets.GH_PAT }}@github.com/nocodeapi/mivaa-pdf-extractor.git "$APP_DIR"
-          fi
+        # Clone repo if it doesn't exist
+        if [ ! -d "$APP_DIR/.git" ]; then
+          rm -rf "$APP_DIR"
+          git clone https://x-access-token:${{ secrets.GH_PAT }}@github.com/nocodeapi/mivaa-pdf-extractor.git "$APP_DIR"
+        fi
 
-          cd "$APP_DIR"
+        cd "$APP_DIR"
 
-          # Pull latest changes
-          git fetch origin main
-          git reset --hard origin/main
+        # Pull latest changes
+        git fetch origin main
+        git reset --hard origin/main
 
-          # Write environment variables to .env
-          cat > .env <<EOL
-          SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
-          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
-          OPENAI_ORG_ID=${{ secrets.OPENAI_ORG_ID }}
-          OPENAI_PROJECT_ID=${{ secrets.OPENAI_PROJECT_ID }}
-          ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
-          HUGGINGFACE_API_TOKEN=${{ secrets.HUGGINGFACE_API_TOKEN }}
-          HUGGING_FACE_ACCESS_TOKEN=${{ secrets.HUGGING_FACE_ACCESS_TOKEN }}
-          GITHUB_REPOSITORY=${{ secrets.GITHUB_REPOSITORY }}
-          IMAGE_TAG=${{ secrets.IMAGE_TAG }}
-          EOL
+        # Write environment variables to .env
+        cat > .env <<EOL
+        SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+        SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+        SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+        OPENAI_ORG_ID=${{ secrets.OPENAI_ORG_ID }}
+        OPENAI_PROJECT_ID=${{ secrets.OPENAI_PROJECT_ID }}
+        ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
+        HUGGINGFACE_API_TOKEN=${{ secrets.HUGGINGFACE_API_TOKEN }}
+        HUGGING_FACE_ACCESS_TOKEN=${{ secrets.HUGGING_FACE_ACCESS_TOKEN }}
+        GITHUB_REPOSITORY=${{ secrets.GITHUB_REPOSITORY }}
+        IMAGE_TAG=${{ secrets.IMAGE_TAG }}
+        EOL
 
-          # Install/update dependencies using uv
-          uv sync --frozen
+        # Install/update dependencies using uv pip (faster than uv sync)
+        uv pip install -r requirements.txt
+        uv pip install -r requirements-torch.txt
 
-          # Restart the FastAPI service
-          sudo systemctl restart mivaa-pdf-extractor
-          EOF
+        # Restart the FastAPI service
+        sudo systemctl restart mivaa-pdf-extractor
+        EOF

@@ -23,7 +23,7 @@ jobs:
     # 3. Deploy the application
     - name: Deploy to server
       run: |
-        ssh -o StrictHostKeyChecking=no user@YOUR_SERVER_IP << 'EOF'
+        ssh -o StrictHostKeyChecking=no root@104.248.190.55 << 'EOF'
           set -e
 
           # Clone the repo the first time if it doesn't exist

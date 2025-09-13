@@ -42,24 +42,32 @@ jobs:
         git fetch origin "$DEPLOY_BRANCH"
         git reset --hard origin/"$DEPLOY_BRANCH"
 
-        # --- Install Python 3.9 if not present ---
+        # --- Install pyenv and Python 3.9 ---
         if ! command -v python3.9 &> /dev/null; then
-          echo "Installing Python 3.9..."
-          apt update
-          apt install -y software-properties-common curl gnupg lsb-release
+          echo "Installing pyenv and Python 3.9..."
+          sudo apt update
+          sudo apt install -y make build-essential libssl-dev zlib1g-dev \
+            libbz2-dev libreadline-dev libsqlite3-dev wget curl llvm \
+            libncurses5-dev libncursesw5-dev xz-utils tk-dev libffi-dev liblzma-dev \
+            git
 
-          # Add deadsnakes PPA for current Ubuntu version
-          add-apt-repository -y ppa:deadsnakes/ppa
-          apt update
-          apt install -y python3.9 python3.9-venv python3.9-dev python3.9-distutils
+          # Install pyenv
+          curl https://pyenv.run | bash
+
+          # Configure pyenv
+          export PATH="$HOME/.pyenv/bin:$PATH"
+          eval "$(pyenv init --path)"
+          eval "$(pyenv init -)"
+          eval "$(pyenv virtualenv-init -)"
+
+          # Install Python 3.9
+          pyenv install -s 3.9.18
+          pyenv global 3.9.18
         fi
 
-        # --- DEBUGGING STEP ---
-        echo "--- Python version check ---"
+        # --- DEBUG ---
+        echo "--- Python version ---"
         python3.9 --version
-        echo "--- Listing files in $APP_DIR after git reset ---"
-        ls -la "$APP_DIR"
-        echo "-----------------------------------"
 
         # Write environment variables to .env
         cat > .env <<EOL

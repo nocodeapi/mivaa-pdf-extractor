@@ -29,6 +29,10 @@ jobs:
 
         APP_DIR=/var/www/mivaa-pdf-extractor
 
+        # Store the current branch name from the GitHub Actions context
+        # This will be 'production' if triggered by a push to production branch
+        DEPLOY_BRANCH="${{ github.ref_name }}"
+
         # Clone repo if it doesn't exist
         if [ ! -d "$APP_DIR/.git" ]; then
           rm -rf "$APP_DIR"
@@ -37,12 +41,12 @@ jobs:
 
         cd "$APP_DIR"
 
-        # Pull latest changes
-        git fetch origin main
-        git reset --hard origin/main
+        # Pull latest changes for the specific branch that triggered the workflow
+        git fetch origin "$DEPLOY_BRANCH"
+        git reset --hard origin/"$DEPLOY_BRANCH"
 
-        # --- DEBUGGING STEP: List files to check for uv.lock ---
-        echo "--- Listing files in $APP_DIR ---"
+        # --- DEBUGGING STEP (Keep this for now, just in case) ---
+        echo "--- Listing files in $APP_DIR after git reset ---"
         ls -la "$APP_DIR"
         echo "-----------------------------------"
         # --- END DEBUGGING STEP ---

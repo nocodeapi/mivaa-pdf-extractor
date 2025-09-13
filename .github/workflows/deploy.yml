@@ -42,59 +42,43 @@ jobs:
           git fetch origin "$DEPLOY_BRANCH"
           git reset --hard origin/"$DEPLOY_BRANCH"
 
-          # --- Initialize pyenv if needed ---
+          # --- Initialize pyenv ---
           export PATH="$HOME/.pyenv/bin:$PATH"
-          if command -v pyenv >/dev/null 2>&1; then
-            eval "$(pyenv init --path)"
-            eval "$(pyenv init -)"
-            eval "$(pyenv virtualenv-init -)"
-          fi
+          eval "$(pyenv init --path)"
+          eval "$(pyenv init -)"
+          eval "$(pyenv virtualenv-init -)"
 
-          # Use system Python 3.9+ or pyenv Python
-          PYTHON=python3
+          # Use pyenv Python
+          PYTHON=python3.9
 
           # --- Create virtual environment ---
           if [ ! -d ".venv" ] || [ ! -f ".venv/pyvenv.cfg" ]; then
-            echo "Creating virtual environment..."
             rm -rf .venv
             $PYTHON -m venv .venv
           fi
 
           # Activate venv
           source .venv/bin/activate
-          echo "Python version in venv: $($PYTHON --version)"
 
-          # --- Install uv in venv ---
-          $PYTHON -m pip install --upgrade pip
-          $PYTHON -m pip install uv
+          # --- Ensure pip and uv are installed ---
+          python -m ensurepip --upgrade
+          pip install --upgrade pip
+          pip install uv
 
-          # --- Sync dependencies using uv.lock ---
-          $PYTHON -m uv pip sync uv.lock
+          # --- Generate uv.lock dynamically ---
+          uv pip compile -o uv.lock requirements.txt requirements-torch.txt
 
-          # --- Verify key packages ---
-          $PYTHON -c "import fastapi; print('FastAPI OK')"
-          $PYTHON -c "import pymupdf; print(f'PyMuPDF {pymupdf.__version__} OK')"
-          $PYTHON -c "import pymupdf4llm; print('pymupdf4llm OK')"
+          # --- Sync dependencies ---
+          uv pip sync uv.lock
 
-          # --- Write environment variables ---
-          cat > .env <<EOL
-          SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
-          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
-          OPENAI_ORG_ID=${{ secrets.OPENAI_ORG_ID }}
-          OPENAI_PROJECT_ID=${{ secrets.OPENAI_PROJECT_ID }}
-          ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
-          HUGGINGFACE_API_TOKEN=${{ secrets.HUGGINGFACE_API_TOKEN }}
-          HUGGING_FACE_ACCESS_TOKEN=${{ secrets.HUGGING_FACE_ACCESS_TOKEN }}
-          GITHUB_REPOSITORY=${{ secrets.GITHUB_REPOSITORY }}
-          IMAGE_TAG=${{ secrets.IMAGE_TAG }}
-          EOL
+          # --- Verify installations ---
+          python -c "import fastapi; print('FastAPI OK')"
+          python -c "import pymupdf; print('PyMuPDF OK')"
+          python -c "import pymupdf4llm; print('pymupdf4llm OK')"
 
-          # --- Restart the FastAPI service ---
-          sudo systemctl daemon-reload
+          # Restart the FastAPI service
           sudo systemctl restart mivaa-pdf-extractor
 
-          # --- Check service status ---
+          # Check service status
           sudo systemctl status mivaa-pdf-extractor --no-pager
           EOF

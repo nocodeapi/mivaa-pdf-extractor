@@ -1,4 +1,4 @@
-name: Deploy FastAPI App - Python 3.9
+name: Deploy FastAPI App with uv
 
 on:
   push:
@@ -29,6 +29,10 @@ jobs:
 
         APP_DIR=/var/www/mivaa-pdf-extractor
 
+        # Store the current branch name from the GitHub Actions context
+        # This will be 'production' if triggered by a push to production branch
+        DEPLOY_BRANCH="${{ github.ref_name }}"
+
         # Clone repo if it doesn't exist
         if [ ! -d "$APP_DIR/.git" ]; then
           rm -rf "$APP_DIR"
@@ -37,9 +41,9 @@ jobs:
 
         cd "$APP_DIR"
 
-        # Pull latest changes
-        git fetch origin main
-        git reset --hard origin/main
+        # Pull latest changes for the specific branch that triggered the workflow
+        git fetch origin "$DEPLOY_BRANCH"
+        git reset --hard origin/"$DEPLOY_BRANCH"
 
         # Check if Python 3.9 is available, if not install it
         if ! command -v python3.9 &> /dev/null; then
@@ -56,8 +60,13 @@ jobs:
           fi
         fi
 
-        echo "Available Python versions:"
-        ls -la /usr/bin/python3*
+        # --- DEBUGGING STEP (Keep this for now, just in case) ---
+        echo "--- Python version check ---"
+        python3.9 --version
+        echo "--- Listing files in $APP_DIR after git reset ---"
+        ls -la "$APP_DIR"
+        echo "-----------------------------------"
+        # --- END DEBUGGING STEP ---
 
         # Write environment variables to .env
         cat > .env <<EOL
@@ -74,30 +83,24 @@ jobs:
         IMAGE_TAG=${{ secrets.IMAGE_TAG }}
         EOL
 
-        # Clean environment
-        rm -rf .venv
-        uv cache clean
+        # Create virtual environment with Python 3.9 if it doesn't exist
+        if [ ! -d ".venv" ] || [ ! -f ".venv/pyvenv.cfg" ] || ! grep -q "python3.9" .venv/pyvenv.cfg; then
+          echo "Creating virtual environment with Python 3.9..."
+          rm -rf .venv
+          uv venv .venv --python python3.9
+        fi
 
-        # Create virtual environment with Python 3.9
-        echo "Creating virtual environment with Python 3.9..."
-        uv venv .venv --python python3.9
+        # Activate virtual environment
         source .venv/bin/activate
-
         echo "Python version in venv: $(python --version)"
 
-        # Install dependencies
-        echo "Installing main requirements..."
-        uv pip install -r requirements.txt
-
-        if [ -f "requirements-torch.txt" ]; then
-          echo "Installing torch requirements..."
-          uv pip install -r requirements-torch.txt
-        fi
+        # Install dependencies using uv pip sync from uv.lock
+        echo "Syncing dependencies from uv.lock..."
+        uv pip sync uv.lock
 
         # Verify installation
         echo "Verifying installation..."
         python -c "import sys; print(f'Python version: {sys.version}')"
-        python -c "import torch; print(f'PyTorch {torch.__version__} OK')" || echo "PyTorch verification skipped"
         python -c "import fastapi; print('FastAPI OK')"
         python -c "import pymupdf; print(f'PyMuPDF {pymupdf.__version__} OK')"
         python -c "import pymupdf4llm; print('pymupdf4llm OK')"
@@ -105,7 +108,7 @@ jobs:
         # Restart the FastAPI service
         echo "Restarting service..."
         sudo systemctl restart mivaa-pdf-extractor
-
+        
         # Check service status
         echo "Service status:"
         sudo systemctl status mivaa-pdf-extractor --no-pager

@@ -9,3 +9,4 @@ __pychache__/
 *.db
 *.log
 *.pot   
+uv.lock

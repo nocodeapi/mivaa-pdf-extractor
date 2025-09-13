@@ -42,20 +42,41 @@ jobs:
           git fetch origin "$DEPLOY_BRANCH"
           git reset --hard origin/"$DEPLOY_BRANCH"
 
-          # --- Initialize pyenv ---
+          # --- Initialize pyenv if needed ---
           export PATH="$HOME/.pyenv/bin:$PATH"
-          eval "$(pyenv init --path)"
-          eval "$(pyenv init -)"
-          eval "$(pyenv virtualenv-init -)"
+          if command -v pyenv >/dev/null 2>&1; then
+            eval "$(pyenv init --path)"
+            eval "$(pyenv init -)"
+            eval "$(pyenv virtualenv-init -)"
+          fi
 
-          # Use pyenv Python
-          PYTHON=python
+          # Use system Python 3.9+ or pyenv Python
+          PYTHON=python3
 
-          # --- Debug ---
-          echo "--- Python version ---"
-          $PYTHON --version
+          # --- Create virtual environment ---
+          if [ ! -d ".venv" ] || [ ! -f ".venv/pyvenv.cfg" ]; then
+            echo "Creating virtual environment..."
+            rm -rf .venv
+            $PYTHON -m venv .venv
+          fi
 
-          # Write environment variables to .env
+          # Activate venv
+          source .venv/bin/activate
+          echo "Python version in venv: $($PYTHON --version)"
+
+          # --- Install uv in venv ---
+          $PYTHON -m pip install --upgrade pip
+          $PYTHON -m pip install uv
+
+          # --- Sync dependencies using uv.lock ---
+          $PYTHON -m uv pip sync uv.lock
+
+          # --- Verify key packages ---
+          $PYTHON -c "import fastapi; print('FastAPI OK')"
+          $PYTHON -c "import pymupdf; print(f'PyMuPDF {pymupdf.__version__} OK')"
+          $PYTHON -c "import pymupdf4llm; print('pymupdf4llm OK')"
+
+          # --- Write environment variables ---
           cat > .env <<EOL
           SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
           SUPABASE_URL=${{ secrets.SUPABASE_URL }}
@@ -70,32 +91,10 @@ jobs:
           IMAGE_TAG=${{ secrets.IMAGE_TAG }}
           EOL
 
-          # --- Create virtual environment ---
-          if [ ! -d ".venv" ] || [ ! -f ".venv/pyvenv.cfg" ] || ! grep -q "3.9" .venv/pyvenv.cfg; then
-            echo "Creating virtual environment with pyenv Python..."
-            rm -rf .venv
-            $PYTHON -m venv .venv
-          fi
-
-          # Activate venv
-          source .venv/bin/activate
-          echo "Python version in venv: $($PYTHON --version)"
-
-          # --- Sync dependencies ---
-          echo "Syncing dependencies from uv.lock..."
-          uv pip sync uv.lock
-
-          # --- Verify installations ---
-          $PYTHON -c "import sys; print(f'Python version: {sys.version}')"
-          $PYTHON -c "import fastapi; print('FastAPI OK')"
-          $PYTHON -c "import pymupdf; print(f'PyMuPDF {pymupdf.__version__} OK')"
-          $PYTHON -c "import pymupdf4llm; print('pymupdf4llm OK')"
-
-          # Restart the FastAPI service
-          echo "Restarting service..."
+          # --- Restart the FastAPI service ---
+          sudo systemctl daemon-reload
           sudo systemctl restart mivaa-pdf-extractor
 
-          # Check service status
-          echo "Service status:"
+          # --- Check service status ---
           sudo systemctl status mivaa-pdf-extractor --no-pager
           EOF

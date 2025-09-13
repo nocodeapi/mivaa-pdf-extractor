@@ -56,9 +56,9 @@ jobs:
         IMAGE_TAG=${{ secrets.IMAGE_TAG }}
         EOL
 
-        # Install/update dependencies using uv pip (faster than uv sync)
-        uv pip install -r requirements.txt
-        uv pip install -r requirements-torch.txt
+        # Install dependencies using uv pip sync from uv.lock
+        # This ensures exact dependency versions as locked locally
+        uv pip sync uv.lock
 
         # Restart the FastAPI service
         sudo systemctl restart mivaa-pdf-extractor

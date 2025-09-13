@@ -24,15 +24,22 @@ jobs:
     # 3. Deploy the application
     - name: Deploy to server
       run: |
-        ssh -o StrictHostKeyChecking=no root@104.248.190.55 << 'EOF'
+          ssh -o StrictHostKeyChecking=no root@104.248.190.55 << 'EOF'
           set -e
 
-          # Clone the repo if it doesn't exist
-          cd /var/www/mivaa-pdf-extractor || {
-            git clone git@github.com:nocodeapi/mivaa-pdf-extractor.git /var/www/mivaa-pdf-extractor
-            cd /var/www/mivaa-pdf-extractor
-          }
-          git pull origin main
+          APP_DIR=/var/www/mivaa-pdf-extractor
+
+          # If the folder doesn't exist or is not a git repo, clone it
+          if [ ! -d "$APP_DIR/.git" ]; then
+            rm -rf "$APP_DIR"           # remove incomplete folder if it exists
+            git clone git@github.com:nocodeapi/mivaa-pdf-extractor.git "$APP_DIR"
+          fi
+
+          cd "$APP_DIR"
+
+          # Pull latest changes
+          git fetch origin main
+          git reset --hard origin/main
 
           # Write environment variables to .env
           cat > .env <<EOL
@@ -49,9 +56,9 @@ jobs:
           IMAGE_TAG=${{ secrets.IMAGE_TAG }}
           EOL
 
-          # Install or update dependencies using uv
+          # Install/update dependencies using uv
           uv sync --frozen
 
-          # Restart the FastAPI service (systemd unit must already exist)
+          # Restart the FastAPI service
           sudo systemctl restart mivaa-pdf-extractor
-        EOF
+          EOF

@@ -41,6 +41,13 @@ jobs:
         git fetch origin main
         git reset --hard origin/main
 
+        # --- DEBUGGING STEP: List files to check for uv.lock ---
+        echo "--- Listing files in $APP_DIR ---"
+        ls -la "$APP_DIR"
+        echo "-----------------------------------"
+        # --- END DEBUGGING STEP ---
+
+
         # Write environment variables to .env
         cat > .env <<EOL
         SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
@@ -57,7 +64,6 @@ jobs:
         EOL
 
         # Install dependencies using uv pip sync from uv.lock
-        # This ensures exact dependency versions as locked locally
         uv pip sync uv.lock
 
         # Restart the FastAPI service

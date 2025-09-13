@@ -2,15 +2,16 @@ name: Deploy FastAPI App with uv
 
 on:
   push:
-    branches: [ "main", "production"]       # deploy when main branch is updated
-  workflow_dispatch:           # allow manual trigger
+    branches: [ "main", "production"]       # deploy when main or production is updated
+  workflow_dispatch:                        # allow manual trigger
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: production                 # <-- ensures environment secrets are available
 
     steps:
-    # 1. Checkout the code
+    # 1. Checkout the repository
     - name: Checkout repository
       uses: actions/checkout@v4
 
@@ -26,7 +27,7 @@ jobs:
         ssh -o StrictHostKeyChecking=no root@104.248.190.55 << 'EOF'
           set -e
 
-          # Clone the repo the first time if it doesn't exist
+          # Clone the repo if it doesn't exist
           cd /var/www/mivaa-pdf-extractor || {
             git clone git@github.com:nocodeapi/mivaa-pdf-extractor.git /var/www/mivaa-pdf-extractor
             cd /var/www/mivaa-pdf-extractor
